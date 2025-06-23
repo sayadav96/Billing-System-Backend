@@ -39,7 +39,7 @@ const createOrder = async (req, res) => {
         .json({ message: "Duplicate order detected in the last 10 seconds" });
     }
 
-    const outstandingAtTime= foundCustomer.outstandingAmount;
+    const outstandingAtTime = foundCustomer.outstandingAmount;
 
     if (isReturn) {
       foundCustomer.outstandingAmount -= totalAmount;
@@ -55,7 +55,7 @@ const createOrder = async (req, res) => {
       totalAmount,
       billedBy,
       isReturn,
-      outstandingAtTime
+      outstandingAtTime,
     });
     await newOrder.save();
 
@@ -111,21 +111,30 @@ const getAllOrders = async (req, res) => {
     const query = {};
 
     // 🗓️ Date filtering
-    if (singleDate) {
-      const start = new Date(singleDate);
-      const end = new Date(singleDate);
-      end.setDate(end.getDate() + 1);
-      query.date = { $gte: start, $lt: end };
-    } else if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
+if (singleDate) {
+  const userDate = new Date(singleDate);
+  const start = new Date(userDate);
+  start.setHours(0, 0, 0, 0);
 
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        query.date.$lt = end;
-      }
-    }
+  const end = new Date(userDate);
+  end.setHours(23, 59, 59, 999);
+
+  query.date = { $gte: start, $lte: end };
+} else if (startDate || endDate) {
+  query.date = {};
+  if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    query.date.$gte = start;
+  }
+
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    query.date.$lte = end;
+  }
+}
+
 
     // 🧍‍♂️ Customer filter
     if (customer) {
