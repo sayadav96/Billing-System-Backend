@@ -95,9 +95,6 @@ const deleteOrder = async (req, res) => {
     }
 
     // Reverse the outstanding amount
-    customer.outstandingAmount += orderToBeDeleted.isReturn
-      ? orderToBeDeleted.totalAmount
-      : -orderToBeDeleted.totalAmount;
 
     customer.outstandingAmount = orderToBeDeleted.isReturn
       ? customer.outstandingAmount + orderToBeDeleted.bill
