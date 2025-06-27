@@ -4,7 +4,7 @@ const orderSchema = new mongoose.Schema(
   {
     date: {
       type: Date,
-      default: Date.now, // Automatically sets the date when an order is created
+      default: Date.now,
     },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,11 +28,23 @@ const orderSchema = new mongoose.Schema(
         },
       },
     ],
-    totalAmount: {
+    bill: {
       type: Number,
       required: true,
     },
-    outstandingAtTime: {
+    oldBalance: {
+      type: Number,
+      required: true,
+    },
+    total: {
+      type: Number,
+      required: true,
+    },
+    paid: {
+      type: Number,
+      required: true,
+    },
+    newBalance: {
       type: Number,
       required: true,
     },

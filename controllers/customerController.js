@@ -112,6 +112,30 @@ const updateCustomer = async (req, res) => {
   }
 };
 
+const getOutstanding = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ message: "Id was incorrect or not provided" });
+    }
+
+    const customer = await Customer.findById(id).lean();
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    res.status(200).json({
+      message: "Success",
+      outstanding: customer.outstandingAmount,
+    });
+  } catch (error) {
+    console.error("Error Getting the outstanding", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const getAllCustomers = async (req, res) => {
   try {
     const customers = await Customer.find();
@@ -122,4 +146,9 @@ const getAllCustomers = async (req, res) => {
   }
 };
 
-module.exports = { createCustomer, updateCustomer, getAllCustomers };
+module.exports = {
+  createCustomer,
+  getOutstanding,
+  updateCustomer,
+  getAllCustomers,
+};

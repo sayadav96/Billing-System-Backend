@@ -3,33 +3,43 @@ const Customer = require("../models/Customer");
 
 const createOrder = async (req, res) => {
   try {
-    const { customer, products, totalAmount, billedBy, isReturn } = req.body;
+    const { customer, products, bill, paid, billedBy, isReturn } = req.body;
+
     if (
       !Array.isArray(products) ||
       products.length === 0 ||
-      !totalAmount ||
+      bill === undefined ||
+      paid === undefined ||
       !customer
+    ) {
+      return res.status(400).json({ message: "Mandatory fields are missing" });
+    }
+
+    if (
+      typeof bill !== "number" ||
+      bill < 0 ||
+      typeof paid !== "number" ||
+      paid < 0
     ) {
       return res
         .status(400)
-        .json({ message: "Mandatory fields are not provided" });
-    }
-
-    if (typeof totalAmount !== "number" || totalAmount <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Total amount must be a positive number" });
+        .json({ message: "Bill and Paid must be non-negative numbers" });
     }
 
     const foundCustomer = await Customer.findById(customer);
-
     if (!foundCustomer) {
       return res.status(404).json({ message: "Customer not found" });
     }
 
+    const oldBalance = foundCustomer.outstandingAmount || 0;
+
+    const adjustedBill = isReturn ? -bill : bill;
+    const total = oldBalance + adjustedBill;
+    const newBalance = total - paid;
+
     const existingOrder = await Order.findOne({
       customer,
-      totalAmount,
+      bill,
       createdAt: { $gte: new Date(Date.now() - 10000) }, // last 10s
     });
 
@@ -39,24 +49,24 @@ const createOrder = async (req, res) => {
         .json({ message: "Duplicate order detected in the last 10 seconds" });
     }
 
-    const outstandingAtTime = foundCustomer.outstandingAmount;
-
-    if (isReturn) {
-      foundCustomer.outstandingAmount -= totalAmount;
-    } else {
-      foundCustomer.outstandingAmount += totalAmount;
-    }
-
-    await foundCustomer.save();
-
     const newOrder = new Order({
       customer,
       products,
-      totalAmount,
+      bill,
+      oldBalance,
+      total,
+      paid,
+      newBalance,
       billedBy,
       isReturn,
-      outstandingAtTime,
     });
+
+    foundCustomer.outstandingAmount = newBalance;
+    if (paid) {
+      foundCustomer.lastPaidOn = new Date();
+    }
+    foundCustomer.lastBilledOn = new Date();
+    await foundCustomer.save();
     await newOrder.save();
 
     res.status(201).json({ message: "Order created successfully", newOrder });
@@ -89,6 +99,10 @@ const deleteOrder = async (req, res) => {
       ? orderToBeDeleted.totalAmount
       : -orderToBeDeleted.totalAmount;
 
+    customer.outstandingAmount = orderToBeDeleted.isReturn
+      ? customer.outstandingAmount + orderToBeDeleted.bill
+      : customer.outstandingAmount - orderToBeDeleted.bill;
+
     await customer.save();
 
     await orderToBeDeleted.deleteOne(); // This preserves the returned data
@@ -111,30 +125,29 @@ const getAllOrders = async (req, res) => {
     const query = {};
 
     // 🗓️ Date filtering
-if (singleDate) {
-  const userDate = new Date(singleDate);
-  const start = new Date(userDate);
-  start.setHours(0, 0, 0, 0);
+    if (singleDate) {
+      const userDate = new Date(singleDate);
+      const start = new Date(userDate);
+      start.setHours(0, 0, 0, 0);
 
-  const end = new Date(userDate);
-  end.setHours(23, 59, 59, 999);
+      const end = new Date(userDate);
+      end.setHours(23, 59, 59, 999);
 
-  query.date = { $gte: start, $lte: end };
-} else if (startDate || endDate) {
-  query.date = {};
-  if (startDate) {
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    query.date.$gte = start;
-  }
+      query.date = { $gte: start, $lte: end };
+    } else if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.date.$gte = start;
+      }
 
-  if (endDate) {
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    query.date.$lte = end;
-  }
-}
-
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.date.$lte = end;
+      }
+    }
 
     // 🧍‍♂️ Customer filter
     if (customer) {
